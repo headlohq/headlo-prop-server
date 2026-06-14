@@ -1,0 +1,38 @@
+{
+  "name": "headlo-prop-server",
+  "version": "0.1.0",
+  "description": "Self-hosted PROP server for the Headlo Platform Reactive Open Protocol",
+  "main": "server.mjs",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://www.headlo.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/headlohq/headlo-prop-server"
+  },
+  "keywords": [
+    "prop",
+    "headlo",
+    "platform-reactive-open-protocol",
+    "self-hosted",
+    "open-source",
+    "postgres",
+    "mcp",
+    "plugin",
+    "react",
+    "ai-agent"
+  ],
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "@types/pg": "^8.20.0",
+    "typescript": "^5.0.0"
+  }
+}

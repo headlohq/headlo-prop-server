@@ -1,0 +1,43 @@
+name = "headlo-prop-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# ── Hyperdrive ────────────────────────────────────────────────────────────────
+# Hyperdrive abstracts your Postgres connection with built-in connection pooling.
+# Any Postgres database works: Neon, Supabase, Railway, self-hosted.
+#
+# Set up:
+#   1. wrangler hyperdrive create my-prop-db --connection-string="postgresql://..."
+#   2. Copy the returned id into the binding below
+# ─────────────────────────────────────────────────────────────────────────────
+[[hyperdrive]]
+binding = "DB"
+id = "YOUR_HYPERDRIVE_ID"   # replace with: wrangler hyperdrive create ...
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Set via: wrangler secret put PROP_CLIENT_ID
+#          wrangler secret put PROP_SECRET
+#
+# These must match what you registered in the Headlo dashboard.
+# Headlo sends them as x-prop-client-id and x-prop-secret on every request.
+# ─────────────────────────────────────────────────────────────────────────────
+# PROP_CLIENT_ID = (set via wrangler secret)
+# PROP_SECRET    = (set via wrangler secret)
+
+# ── Optional secrets ──────────────────────────────────────────────────────────
+# OPENAI_API_KEY    = (set via wrangler secret — required for provider: openai)
+# ANTHROPIC_API_KEY = (set via wrangler secret — required for provider: anthropic)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Durable Objects ───────────────────────────────────────────────────────────
+# PropSession provides real-time WebSocket rooms for multiplayer PROPs.
+# Each session_id gets its own DO instance — broadcasts messages to all
+# connected clients within the room.
+# ─────────────────────────────────────────────────────────────────────────────
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "PropSession"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PropSession"]
