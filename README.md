@@ -150,4 +150,6 @@ Self-hosting means you own the data. Headlo still provides the visual editor, th
 
 ## License
 
-MIT — © Headlo Team
+[Elastic License 2.0](LICENSE) — © Headlo Team
+
+Source available. Free for internal use and self-hosting. You may not offer this software as a competing hosted or managed service. See [LICENSE](LICENSE) for the full terms.

@@ -4,7 +4,7 @@
   "description": "Self-hosted PROP server for the Headlo Platform Reactive Open Protocol",
   "main": "server.mjs",
   "type": "module",
-  "license": "MIT",
+  "license": "Elastic-2.0",
   "homepage": "https://www.headlo.com",
   "repository": {
     "type": "git",
