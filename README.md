@@ -68,7 +68,7 @@ Server runs on `http://localhost:3001` by default.
 | `DATABASE_URL` | Yes | Postgres connection string (Neon, Supabase, Hyperdrive, local) |
 | `PORT` | No | Port to listen on (default: `3001`) |
 | `CORS_ORIGIN` | No | Allowed CORS origin (default: `*`) |
-| `PROP_SERVER_KEY` | No | MCP key from [headlo.com/mcp/key](https://headlo.com/mcp/key) — lets Headlo sync routing and authorizes calls to Headlo's managed services |
+| `PROP_SERVER_KEY` | No | Secret key (`hlk_xxx`) from [headlo.com/dashboard/settings](https://headlo.com/dashboard/settings) → **PROP Server Secret Key** — lets Headlo sync routing and authorizes calls to Headlo's managed services |
 
 **Supported `DATABASE_URL` formats:**
 
