@@ -1,4 +1,4 @@
-# Contributing to headlo-prop-server
+# Contributing to Headlo PROP Server SDK
 
 Three ways to contribute. They require different levels of effort and different kinds of judgment.
 

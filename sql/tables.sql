@@ -260,6 +260,30 @@ COMMENT ON COLUMN prop_service.def.contract_version        IS 'sha256(JSON.strin
 COMMENT ON COLUMN prop_service.def.handlers                IS 'Type: PropServiceDefHandlers — { [actionName]: { updates_state?: string[] } }';
 
 -- ============================================================
+-- prop_server.api_key — publishable keys for browser clients
+-- ============================================================
+-- Each key identifies a customer for billing and service routing.
+-- Safe to expose in browser code (VITE_HEADLO_PROP_SERVER_PUBLISHABLE_KEY).
+--
+-- allowed_origins: domain allowlist — headlo-worker (or this server)
+-- rejects service calls whose Origin is not in this list.
+-- Empty array = all origins allowed (dev/internal use only).
+-- ============================================================
+
+CREATE SCHEMA IF NOT EXISTS prop_server;
+
+CREATE TABLE IF NOT EXISTS prop_server.api_key (
+  key_id          TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
+  publishable_key TEXT NOT NULL UNIQUE,       -- pk_live_xxx — safe for browser
+  name            TEXT,                        -- human label e.g. "Production", "Staging"
+  allowed_origins TEXT[] NOT NULL DEFAULT '{}', -- ['https://acme.com', 'http://localhost:3000']
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_key_pk ON prop_server.api_key(publishable_key);
+
+-- ============================================================
 -- Indexes
 -- ============================================================
 

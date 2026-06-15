@@ -32,3 +32,22 @@ DO $$ BEGIN
     ALTER TABLE prop_component.impl RENAME COLUMN author_id TO owner_id;
   END IF;
 END $$;
+
+-- react_version: major React version the component was compiled against (2026-06-14)
+-- /prop/embed/react/:version serves the matching KV-cached React+ReactDOM bundle.
+-- window.__headlo_React_${version} is set so multiple versions can coexist on a page.
+ALTER TABLE prop_component.def ADD COLUMN IF NOT EXISTS react_version TEXT NOT NULL DEFAULT '19';
+
+-- prop_server.api_key: publishable keys for browser clients (2026-06-15)
+-- Identifies the customer for billing and service routing.
+-- allowed_origins enforces domain allowlisting — rejects service calls from unlisted origins.
+CREATE SCHEMA IF NOT EXISTS prop_server;
+CREATE TABLE IF NOT EXISTS prop_server.api_key (
+  key_id          TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
+  publishable_key TEXT NOT NULL UNIQUE,
+  name            TEXT,
+  allowed_origins TEXT[] NOT NULL DEFAULT '{}',
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_api_key_pk ON prop_server.api_key(publishable_key);

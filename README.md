@@ -1,12 +1,40 @@
-# Headlo Prop Server SDK
+# Headlo PROP Server
 
-Self-hosted server for the **Headlo PROP** (Platform Reactive Open Protocol). Run your own PROP backend in any Postgres environment — Neon, Supabase, Railway, or your own server. Your data never touches Headlo's infrastructure.
+Self-hosted server for **PROP — Platform Reactive Observable Protocol**. Run your own PROP backend against any Postgres database. Your data never touches Headlo's infrastructure.
 
 ## What is PROP?
 
-PROP is Headlo's Universal Abstraction Layer — a contract-driven programming model for interactive web applications. A **PROP contract** defines what props a component receives, what actions it can fire, and what service dependencies it needs. From one contract definition, Headlo auto-generates Monaco TypeScript types, MCP tools, API docs, and this SQL schema.
+PROP is Headlo's component platform. A PROP component is a compiled React function component distributed as a native web custom element — drop it onto any page with two script tags, no npm, no bundler, no framework required on the host.
 
-The `prop_*.*` schema is the complete data model. It is open source and identical to what Headlo uses internally.
+```html
+<script src="https://api.headlo.com/prop/embed/react/19"></script>
+<script src="https://api.headlo.com/prop/embed/component/headlo-auth-signin"></script>
+
+<headlo-auth-signin label="Sign in"></headlo-auth-signin>
+```
+
+The slug in the URL is the custom element tag name. No mapping to learn.
+
+### Why "Observable"
+
+Every PROP component's dependencies — React, libraries, service contracts — are versioned and served by Headlo's edge infrastructure. Every service call goes through Headlo's worker routes. Usage is naturally observable: MAU, per-call, per-render. Publishers set a price; Headlo meters and routes 70% to the publisher's Stripe account automatically.
+
+Self-hosted components (via this server) are not observable by Headlo. The protocol is yours. The platform layer is Headlo's product.
+
+## Versioned, sealed components
+
+A PROP component's def has four runtime fields:
+
+| Field | Purpose |
+|---|---|
+| `slug` | Identity — URL path and custom element tag name |
+| `react_version` | Which Headlo-hosted React bundle to load (`"19"`) |
+| `requires.libs` | Additional library versions (`[{ name: "chartjs", version: "4" }]`) |
+| `requires.services` | Versioned service client stubs (`[{ slug: "auth", version: "v1" }]`) |
+
+All dependencies are served as version-scoped globals — `window.__headlo_React_19`, `window.__headlo_service_auth_v1` — so multiple versions coexist on the same page without conflict, and the host page's own libraries are never touched.
+
+Breaking changes always create a new version. Old versions stay live forever. A compiled component is permanently stable from the moment it ships.
 
 ## Quickstart
 
@@ -22,12 +50,7 @@ cp .env.example .env
 
 ```bash
 psql $DATABASE_URL -f sql/tables.sql
-```
-
-**Seed the Ask Widget (optional reference implementation):**
-
-```bash
-psql $DATABASE_URL -f sql/ask-widget.sql
+psql $DATABASE_URL -f sql/upgrades.sql
 ```
 
 **Start the server:**
@@ -44,9 +67,8 @@ Server runs on `http://localhost:3001` by default.
 |---|---|---|
 | `DATABASE_URL` | Yes | Postgres connection string (Neon, Supabase, Hyperdrive, local) |
 | `PORT` | No | Port to listen on (default: `3001`) |
-| `OPENAI_API_KEY` | Ask Widget only | OpenAI key for the built-in Ask Widget handler |
 | `CORS_ORIGIN` | No | Allowed CORS origin (default: `*`) |
-| `HEADLO_PROP_KEY` | No | Headlo API key — lets Headlo sync routing from this server |
+| `PROP_SERVER_KEY` | No | MCP key from [headlo.com/mcp/key](https://headlo.com/mcp/key) — lets Headlo sync routing and authorizes calls to Headlo's managed services |
 
 **Supported `DATABASE_URL` formats:**
 
@@ -72,81 +94,158 @@ Health check.
 { "ok": true, "version": "0.1.0" }
 ```
 
-### `GET /v1/prop/:defSlug/:appSlug`
-Returns config, compiled component JS, and current state for the app. This is what the Headlo host application calls to load a PROP app.
+### `GET /v1/prop/component/:slug`
+Returns def and compiled component JS for a public component.
 
 ```json
 {
-  "app_id": "abc123",
-  "config": { "widgetConfig": { "name": "My Widget" } },
-  "js": "function Component(...) { ... }",
-  "state": { "messages": [], "loading": false },
-  "contract": { "config_fields": [...], "state_fields": [...], "actions": [...] }
+  "error": null,
+  "def": { "slug": "headlo-auth-signin", "react_version": "19", "requires": { "services": [{ "slug": "auth", "version": "v1" }] }, "is_public": true },
+  "app": { "component_js": "function Component(...) { ... }", "prop_runtime_version": "abc123" }
 }
 ```
 
-### `POST /v1/prop/:defSlug/:appSlug/:action`
-Fires an action. The server calls the matching handler, updates `prop.state`, logs to `prop.event`, and returns the updated state fields.
+### `GET /v1/prop/service/:slug`
+Returns the service def contract for a public service.
+
+### `POST /v1/prop/service/:slug/:version/:action`
+Fires a versioned service action. The version is pinned in the client stub URL — the handler for that version never changes after publication.
 
 ```bash
-curl -X POST http://localhost:3001/v1/prop/ask-widget/my-widget/onSubmit \
+curl -X POST http://localhost:3001/v1/prop/service/auth/v1/signin \
   -H "Content-Type: application/json" \
-  -d '{"question": "What is PROP?"}'
-```
-
-```json
-{ "state": { "messages": [...] }, "messages": [...] }
-```
-
-Set `x-prop-source: mcp` or `x-prop-source: api` header to tag the event source in `prop.event`.
-
-### `PATCH /v1/prop/:defSlug/:appSlug`
-Save component source and compiled JS from the editor.
-
-```json
-{ "src": "function Component(...) { ... }", "js": "..." }
+  -d '{"email": "user@example.com", "password": "..."}'
 ```
 
 ## Schema
 
-Six tables in the `prop` schema. All owned by you. No Headlo-specific columns.
+The `prop_component` and `prop_service` schemas. All tables owned by you.
 
 | Table | What it stores |
 |---|---|
-| `prop.def` | PROP contract definitions — `contract` JSONB drives everything |
-| `prop.app` | Deployed apps — one row per live PROP instance |
-| `prop.code` | Component `src` (editable) + `js` (compiled) |
-| `prop.state` | Live state — `state` JSONB + optimistic lock `version` |
-| `prop.event` | Action log — browser, MCP, and API calls unified |
-| `prop.impl` | Marketplace implementations — many visuals per one contract |
+| `prop_component.def` | Component definitions — `slug`, `react_version`, `requires`, `contract` |
+| `prop_component.app` | Deployed component instances — `component_src`, `component_js` |
+| `prop_service.def` | Service definitions — contract, action signatures, `contract_tag` |
 
-Full schema: [sql/tables.sql](sql/tables.sql)
+Full schema: [sql/tables.sql](sql/tables.sql)  
+Upgrades: [sql/upgrades.sql](sql/upgrades.sql)
 
-## Adding your own PROP
+## Adding your own component
 
-1. Insert a row into `prop.def` with your contract and handlers
-2. Create a handler file at `handlers/<your-slug>.mjs` that exports a function per action
-3. Insert a `prop.app` row for each deployed instance
-4. Done — the generic server routes everything automatically
+1. Insert a row into `prop_component.def` with `slug`, `react_version`, `requires`, `is_public: true`
+2. Insert a `prop_component.app` row with your compiled `component_js`
+3. Done — components are served at `GET /v1/prop/component/:slug`
 
-See [sql/ask-widget.sql](sql/ask-widget.sql) and [handlers/ask-widget.mjs](handlers/ask-widget.mjs) as reference.
+## Calling PROP services from your backend
+
+Use your secret key (`hlk_xxx`) to call service actions server-side — bypasses browser Origin checks entirely.
+
+Generate a secret key at **[headlo.com/dashboard/settings](https://headlo.com/dashboard/settings) → PROP Server Secret Key**, then set it in your server environment:
+
+```bash
+# .env (server-side only — never in browser code)
+PROP_SERVER_KEY=hlk_xxx
+```
+
+### Direct REST call
+
+```bash
+curl -X POST https://your-prop-server.com/v1/prop/service/auth/v1/me \
+  -H "Authorization: Bearer $PROP_SERVER_KEY" \
+  -H "Content-Type: application/json"
+```
+
+### Node.js / edge runtime
+
+```ts
+const res = await fetch('https://your-prop-server.com/v1/prop/service/auth/v1/signin', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.PROP_SERVER_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ email: 'user@example.com', password: '...' }),
+})
+const data = await res.json()
+```
+
+### When to use this vs browser `createService`
+
+| | Browser (`createService`) | Backend (secret key) |
+|---|---|---|
+| Key | `pk_live_xxx` publishable | `hlk_xxx` secret |
+| Origin check | Yes — must be in allowlist | No — server-to-server |
+| Use case | React components, script embeds | Webhooks, cron jobs, SSR, admin scripts |
+
+---
 
 ## Connecting to Headlo
 
-Self-hosting means you own the data. Headlo still provides the visual editor, the marketplace, and the public URLs. To connect:
+Self-hosting means you own the data and serve your own component definitions. Headlo still provides the visual editor, the public component marketplace, and managed services. To connect:
 
 1. Go to your Headlo dashboard → Settings → Self-host
-2. Paste your server URL and your `DATABASE_URL`
-3. Headlo verifies the connection and syncs a routing cache from your `prop.app` rows
-4. Your DB stays the source of truth — Headlo is just the request router
+2. Paste your server URL and set `PROP_SERVER_KEY` in your `.env`
+3. Headlo verifies the connection and syncs routing from your component rows
+4. Your DB stays the source of truth — Headlo routes requests to your server
 
-## Going deeper
+---
 
-| Doc | What it covers |
+## Hybrid Model — Self-Host Components, Use Headlo Services
+
+Self-hosting your component definitions does not mean you have to self-host every service your components depend on. Service routing is determined by which embed URL loads the service client stub — not by where the component definition lives.
+
+### How service routing works
+
+A PROP component's `def.requires.services` declares which services it needs. When the component is embedded in a page, a service client stub is loaded per service. That stub is a JS object whose methods call a URL. That URL determines where service calls go.
+
+**Option A — Use Headlo's managed services**
+
+Load the service stubs from Headlo's CDN:
+
+```html
+<script src="https://api.headlo.com/prop/embed/react/19"></script>
+<script src="https://api.headlo.com/prop/embed/service/auth/v1"></script>
+<script src="https://your-prop-server.com/v1/prop/component/my-component"></script>
+```
+
+The component definition comes from your server. Service calls (`auth.signIn()`, `auth.me()`) go to headlo-worker at `api.headlo.com`. You get Headlo's managed `headlo-auth`, `clerk-auth`, and `billing` services — the same services any managed PROP customer uses.
+
+Requires `PROP_SERVER_KEY` to be set — Headlo's worker validates that service calls from your origin are authorized.
+
+**Option B — Use your own service handlers**
+
+Load the service stubs from your own server:
+
+```html
+<script src="https://api.headlo.com/prop/embed/react/19"></script>
+<script src="https://your-prop-server.com/prop/embed/service/auth/v1"></script>
+<script src="https://your-prop-server.com/v1/prop/component/my-component"></script>
+```
+
+Service calls go to your `headlo-prop-server` at `POST /v1/prop/service/:slug/:version/:action`. You implement the handlers yourself against your own database and auth stack. No Headlo involvement at runtime.
+
+**Option C — Mix**
+
+Use Headlo's managed auth and billing but self-host a custom service:
+
+```html
+<script src="https://api.headlo.com/prop/embed/react/19"></script>
+<script src="https://api.headlo.com/prop/embed/service/auth/v1"></script>        <!-- Headlo -->
+<script src="https://api.headlo.com/prop/embed/service/billing/v1"></script>     <!-- Headlo -->
+<script src="https://your-prop-server.com/prop/embed/service/inventory/v1"></script>  <!-- yours -->
+<script src="https://your-prop-server.com/v1/prop/component/my-component"></script>
+```
+
+### What `PROP_SERVER_KEY` enables
+
+| Without key | With key |
 |---|---|
-| [docs/ual.md](docs/ual.md) | The Universal Abstraction Layer — what interfaces exist, their stage, what's missing |
-| [docs/service-design.md](docs/service-design.md) | How to design a Service PROP interface — the methodology behind every interface in the UAL |
-| [docs/contributing.md](docs/contributing.md) | Three ways to contribute: implement an existing interface, propose a new one, or challenge an existing contract |
+| Self-hosted components only | Self-hosted components + Headlo managed services |
+| No Headlo visibility | Headlo syncs component routing from your DB |
+| No marketplace distribution | Components appear in Headlo's marketplace |
+| No Headlo visual editor | Headlo editor connects to your server |
+
+The key authorizes your self-hosted server to call Headlo's managed service routes. Without it, `api.headlo.com/prop/service/*` rejects requests from your origin.
 
 ## License
 
