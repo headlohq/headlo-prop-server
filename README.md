@@ -68,7 +68,7 @@ Server runs on `http://localhost:3001` by default.
 | `DATABASE_URL` | Yes | Postgres connection string (Neon, Supabase, Hyperdrive, local) |
 | `PORT` | No | Port to listen on (default: `3001`) |
 | `CORS_ORIGIN` | No | Allowed CORS origin (default: `*`) |
-| `PROP_SERVER_KEY` | No | Secret key (`hlk_xxx`) from [headlo.com/dashboard/settings](https://headlo.com/dashboard/settings) → **PROP Server Secret Key** — lets Headlo sync routing and authorizes calls to Headlo's managed services |
+| `HEADLO_PROP_SERVER_KEY` | No | Secret key (`hlk_xxx`) from [headlo.com/dashboard/settings](https://headlo.com/dashboard/settings) → **PROP Server Secret Key** — lets Headlo sync routing and authorizes calls to Headlo's managed services |
 
 **Supported `DATABASE_URL` formats:**
 
@@ -144,14 +144,14 @@ Generate a secret key at **[headlo.com/dashboard/settings](https://headlo.com/da
 
 ```bash
 # .env (server-side only — never in browser code)
-PROP_SERVER_KEY=hlk_xxx
+HEADLO_PROP_SERVER_KEY=hlk_xxx
 ```
 
 ### Direct REST call
 
 ```bash
 curl -X POST https://your-prop-server.com/v1/prop/service/auth/v1/me \
-  -H "Authorization: Bearer $PROP_SERVER_KEY" \
+  -H "Authorization: Bearer $HEADLO_PROP_SERVER_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -161,7 +161,7 @@ curl -X POST https://your-prop-server.com/v1/prop/service/auth/v1/me \
 const res = await fetch('https://your-prop-server.com/v1/prop/service/auth/v1/signin', {
   method: 'POST',
   headers: {
-    'Authorization': `Bearer ${process.env.PROP_SERVER_KEY}`,
+    'Authorization': `Bearer ${process.env.HEADLO_PROP_SERVER_KEY}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({ email: 'user@example.com', password: '...' }),
@@ -184,7 +184,7 @@ const data = await res.json()
 Self-hosting means you own the data and serve your own component definitions. Headlo still provides the visual editor, the public component marketplace, and managed services. To connect:
 
 1. Go to your Headlo dashboard → Settings → Self-host
-2. Paste your server URL and set `PROP_SERVER_KEY` in your `.env`
+2. Paste your server URL and set `HEADLO_PROP_SERVER_KEY` in your `.env`
 3. Headlo verifies the connection and syncs routing from your component rows
 4. Your DB stays the source of truth — Headlo routes requests to your server
 
@@ -210,7 +210,7 @@ Load the service stubs from Headlo's CDN:
 
 The component definition comes from your server. Service calls (`auth.signIn()`, `auth.me()`) go to headlo-worker at `api.headlo.com`. You get Headlo's managed `headlo-auth`, `clerk-auth`, and `billing` services — the same services any managed PROP customer uses.
 
-Requires `PROP_SERVER_KEY` to be set — Headlo's worker validates that service calls from your origin are authorized.
+Requires `HEADLO_PROP_SERVER_KEY` to be set — Headlo's worker validates that service calls from your origin are authorized.
 
 **Option B — Use your own service handlers**
 
@@ -236,7 +236,7 @@ Use Headlo's managed auth and billing but self-host a custom service:
 <script src="https://your-prop-server.com/v1/prop/component/my-component"></script>
 ```
 
-### What `PROP_SERVER_KEY` enables
+### What `HEADLO_PROP_SERVER_KEY` enables
 
 | Without key | With key |
 |---|---|
@@ -246,6 +246,38 @@ Use Headlo's managed auth and billing but self-host a custom service:
 | No Headlo visual editor | Headlo editor connects to your server |
 
 The key authorizes your self-hosted server to call Headlo's managed service routes. Without it, `api.headlo.com/prop/service/*` rejects requests from your origin.
+
+---
+
+## Connecting to External Private PROP Servers
+
+Use components from another organisation's private `headlo-prop-server` alongside your own. The other server's owner generates a publishable key (`pk_live_`) for you — not their secret key.
+
+Configure in `.env`:
+
+```bash
+# External server 1 — partner's prop server
+EXTERNAL_PROP_SERVER_1_URL=https://prop.partner.com
+EXTERNAL_PROP_SERVER_1_KEY=pk_live_...
+
+# External server 2 — vendor's prop server
+EXTERNAL_PROP_SERVER_2_URL=https://prop.vendor.com
+EXTERNAL_PROP_SERVER_2_KEY=pk_live_...
+```
+
+Then use their components by slug as normal:
+
+```tsx
+// React
+const { Component } = useProp('partner-auth-signin')
+
+// Script embed
+<script src="https://prop.partner.com/v1/prop/component/partner-auth-signin"></script>
+```
+
+Slug resolution order: **this server first**, then external servers in sequence. If a slug exists on multiple servers, the first match wins.
+
+The external server validates your `pk_live_` key against its allowed origins list — the same domain allowlist mechanism as Headlo's managed keys.
 
 ## License
 
