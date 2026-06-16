@@ -22,6 +22,12 @@ await prop.component('headlo-auth-button').load()
 
 ---
 
+## How it works
+
+**[docs/route-split.md](docs/route-split.md)** — full breakdown of which routes live on Headlo, which routes Headlo calls on your server, and which routes your server serves directly to the browser. Includes call diagrams for all three flows: author saves a component, browser loads a component, user triggers a service action.
+
+---
+
 ## Two deployment modes
 
 | Mode | What you run | Data lives in |
