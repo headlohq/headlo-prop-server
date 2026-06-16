@@ -151,7 +151,7 @@ postgresql://localhost:5432/mydb
 
 ## API
 
-### `GET /status`
+### `GET /v1/prop/status`
 Health check.
 ```json
 { "ok": true }
@@ -253,10 +253,12 @@ Per-agency billing model is stored in `prop_server.service_subscription.billing_
 
 Self-hosting means you own the data and serve your own definitions. Headlo still provides the visual editor, component marketplace, and managed services.
 
-1. Go to Headlo dashboard → Settings → Self-host
-2. Paste your server URL and set `HEADLO_PROP_PRIVATE_KEY` to the same value on both sides
-3. Headlo verifies the connection and syncs routing from your component rows
-4. Your DB stays the source of truth
+1. Go to **[headlo.com/dashboard/settings](https://headlo.com/dashboard/settings)**
+2. Under **PROP Client ID** — copy the `cid_xxx` value → set as `PROP_CLIENT_ID` in your `.env`
+3. Under **PROP Server Secret Key** — generate a secret → set as `PROP_SECRET` in your `.env`
+4. Paste your server URL (e.g. `https://prop.acme.com`) and save
+5. Headlo verifies the connection and syncs routing from your component rows
+6. Your DB stays the source of truth
 
 ---
 

@@ -51,3 +51,45 @@ CREATE TABLE IF NOT EXISTS prop_server.api_key (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_pk ON prop_server.api_key(publishable_key);
+
+-- ============================================================
+-- prop_server.registered_server (2026-06-15)
+-- ============================================================
+-- Self-hosted PROP server registry. Publishers who run their own
+-- PROP server (full data sovereignty) register their URL here.
+--
+-- The publishable_key FK authenticates their server when it calls
+-- back to Headlo's billing PROP services on every action:
+--   POST api.headlo.com/v1/prop/service/billing-xxx/v1/call
+--   header: X-Headlo-Prop-Publishable-Key: pk_live_xxx
+--
+-- billing_service_slug options:
+--   'billing-mau'       — pay per monthly active user
+--   'billing-per-seat'  — flat monthly per declared seat ceiling
+--   'billing-po'        — flat annual purchase order, no per-unit counting
+--
+-- billing_config examples:
+--   billing-mau:       { "max_mau": 5000, "price_per_mau": 0.02 }
+--   billing-per-seat:  { "max_seats": 500, "price_per_seat": 8.00 }
+--   billing-po:        { "po_number": "PO-2026-00441", "seats": 2000, "expires_at": "2027-06-14" }
+--
+-- verified_at: set after Headlo confirms URL proxies correctly
+--   (challenge/response nonce sent to url/v1/prop/ping)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS prop_server.registered_server (
+  server_id            TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
+  agency_id            TEXT NOT NULL,
+  url                  TEXT NOT NULL,
+  publishable_key      TEXT NOT NULL REFERENCES prop_server.api_key(publishable_key),
+  billing_service_slug TEXT NOT NULL DEFAULT 'billing-mau',
+  billing_version      TEXT NOT NULL DEFAULT 'v1',
+  billing_config       JSONB NOT NULL DEFAULT '{}',
+  verified_at          TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (agency_id, url)
+);
+CREATE INDEX IF NOT EXISTS idx_registered_server_agency ON prop_server.registered_server(agency_id);
+CREATE INDEX IF NOT EXISTS idx_registered_server_pk     ON prop_server.registered_server(publishable_key);
+-- ============================================================
+-- END prop_server.registered_server
+-- ============================================================

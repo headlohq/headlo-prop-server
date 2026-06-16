@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS prop_service.app (
 CREATE TABLE IF NOT EXISTS prop_server.api_key (
   key_id          TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
   agency_id       TEXT NOT NULL,                 -- FK → platform.agency.agency_id
-  client_id       TEXT NOT NULL UNIQUE,          -- cid_xxx — safe for browser (X-Headlo-Prop-Client-Id)
+  publishable_key TEXT NOT NULL UNIQUE,          -- pk_live_xxx — safe for browser (X-Headlo-Prop-Publishable-Key)
   secret_key      TEXT UNIQUE,                   -- sk_xxx  — server-side only (X-Headlo-Prop-Secret)
   name            TEXT,                           -- human label e.g. "Production", "Staging"
   allowed_origins TEXT[] NOT NULL DEFAULT '{}',  -- ['https://acme.com', 'http://localhost:3000']
@@ -212,6 +212,47 @@ CREATE TABLE IF NOT EXISTS prop_server.mau_touch (
 );
 
 -- ============================================================
+-- prop_server.registered_server — self-hosted PROP server registry
+-- ============================================================
+-- Publishers who run their own PROP server (full data sovereignty)
+-- register here. The publishable_key FK authenticates their server
+-- when it calls back to Headlo's billing PROP services.
+--
+-- How it works:
+--   1. Publisher deploys their own PROP server at e.g. https://prop.acme.com
+--   2. They register that URL here with their publishable_key
+--   3. Their server calls api.headlo.com/v1/prop/service/billing-xxx/v1/call
+--      passing X-Headlo-Prop-Publishable-Key: pk_live_xxx on every action
+--   4. Headlo validates the key, looks up registered_server, applies billing_config
+--
+-- billing_service_slug options:
+--   'billing-mau'       — pay per monthly active user
+--   'billing-per-seat'  — flat monthly per declared seat ceiling
+--   'billing-po'        — flat annual purchase order, no per-unit counting
+--
+-- billing_config examples:
+--   billing-mau:       { "max_mau": 5000, "price_per_mau": 0.02 }
+--   billing-per-seat:  { "max_seats": 500, "price_per_seat": 8.00 }
+--   billing-po:        { "po_number": "PO-2026-00441", "seats": 2000, "expires_at": "2027-06-14" }
+--
+-- verified_at: set after Headlo confirms the URL actually responds
+--   (challenge/response nonce sent to url/v1/prop/ping)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS prop_server.registered_server (
+  server_id            TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
+  agency_id            TEXT NOT NULL,            -- FK → platform.agency.agency_id
+  url                  TEXT NOT NULL,            -- e.g. https://prop.acme.com
+  publishable_key      TEXT NOT NULL REFERENCES prop_server.api_key(publishable_key),
+  billing_service_slug TEXT NOT NULL DEFAULT 'billing-mau',
+  billing_version      TEXT NOT NULL DEFAULT 'v1',
+  billing_config       JSONB NOT NULL DEFAULT '{}',
+  verified_at          TIMESTAMPTZ,              -- null = pending verification
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (agency_id, url)
+);
+
+-- ============================================================
 -- Indexes
 -- ============================================================
 
@@ -224,9 +265,11 @@ CREATE INDEX IF NOT EXISTS idx_service_def_slug           ON prop_service.def(sl
 CREATE INDEX IF NOT EXISTS idx_service_def_owner          ON prop_service.def(owner_id);
 CREATE INDEX IF NOT EXISTS idx_service_app_slug           ON prop_service.app(slug);
 CREATE INDEX IF NOT EXISTS idx_service_app_def            ON prop_service.app(def_id);
-CREATE INDEX IF NOT EXISTS idx_api_key_client             ON prop_server.api_key(client_id);
+CREATE INDEX IF NOT EXISTS idx_api_key_pk                 ON prop_server.api_key(publishable_key);
 CREATE INDEX IF NOT EXISTS idx_api_key_secret             ON prop_server.api_key(secret_key);
 CREATE INDEX IF NOT EXISTS idx_api_key_agency             ON prop_server.api_key(agency_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_agency        ON prop_server.service_subscription(agency_id);
 CREATE INDEX IF NOT EXISTS idx_usage_period_agency        ON prop_server.usage_period(agency_id, service_app_slug, period_start);
 CREATE INDEX IF NOT EXISTS idx_mau_touch_agency           ON prop_server.mau_touch(agency_id, service_app_slug, period_start);
+CREATE INDEX IF NOT EXISTS idx_registered_server_agency   ON prop_server.registered_server(agency_id);
+CREATE INDEX IF NOT EXISTS idx_registered_server_pk       ON prop_server.registered_server(publishable_key);

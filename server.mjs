@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createServer } from 'node:http'
 import { query } from './db.mjs'
 
@@ -247,7 +248,7 @@ async function handleSync(res) {
   respond(res, 200, { apps: rows })
 }
 
-// GET /status
+// GET /v1/prop/status
 function handleStatus(res) {
   respond(res, 200, { ok: true, version: '0.1.0' })
 }
@@ -257,11 +258,11 @@ function handleStatus(res) {
 const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return respond(res, 204, {})
 
-  // /status is public — used by Headlo to verify the server is reachable
+  // /v1/prop/status is public — used by Headlo to verify the server is reachable
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const parts = url.pathname.split('/').filter(Boolean)
 
-  if (req.method === 'GET' && parts[0] === 'status') {
+  if (req.method === 'GET' && parts[0] === 'v1' && parts[1] === 'prop' && parts[2] === 'status') {
     return handleStatus(res)
   }
 

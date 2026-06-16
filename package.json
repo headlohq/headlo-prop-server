@@ -1,6 +1,6 @@
 {
   "name": "headlo-prop-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Self-hosted PROP server for the Headlo Platform Reactive Open Protocol",
   "main": "server.mjs",
   "type": "module",
@@ -22,6 +22,9 @@
     "react",
     "ai-agent"
   ],
+  "bin": {
+    "headlo-prop-server": "./server.mjs"
+  },
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
