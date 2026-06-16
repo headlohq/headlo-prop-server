@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS prop_service.app (
 CREATE TABLE IF NOT EXISTS prop_server.api_key (
   key_id          TEXT PRIMARY KEY DEFAULT substr(replace(gen_random_uuid()::text,'-',''),1,12),
   agency_id       TEXT NOT NULL,                 -- FK → platform.agency.agency_id
-  client_id       TEXT NOT NULL UNIQUE,          -- cid_xxx — safe for browser (X-Headlo-Prop-Client-Id)
+  publishable_key TEXT NOT NULL UNIQUE,          -- pk_live_xxx — safe for browser (X-Headlo-Prop-Publishable-Key)
   secret_key      TEXT UNIQUE,                   -- sk_xxx  — server-side only (X-Headlo-Prop-Secret)
   name            TEXT,                           -- human label e.g. "Production", "Staging"
   allowed_origins TEXT[] NOT NULL DEFAULT '{}',  -- ['https://acme.com', 'http://localhost:3000']
@@ -222,7 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_service_def_slug           ON prop_service.def(sl
 CREATE INDEX IF NOT EXISTS idx_service_def_owner          ON prop_service.def(owner_id);
 CREATE INDEX IF NOT EXISTS idx_service_app_slug           ON prop_service.app(slug);
 CREATE INDEX IF NOT EXISTS idx_service_app_def            ON prop_service.app(def_id);
-CREATE INDEX IF NOT EXISTS idx_api_key_client             ON prop_server.api_key(client_id);
+CREATE INDEX IF NOT EXISTS idx_api_key_pk                 ON prop_server.api_key(publishable_key);
 CREATE INDEX IF NOT EXISTS idx_api_key_secret             ON prop_server.api_key(secret_key);
 CREATE INDEX IF NOT EXISTS idx_api_key_agency             ON prop_server.api_key(agency_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_agency        ON prop_server.service_subscription(agency_id);
