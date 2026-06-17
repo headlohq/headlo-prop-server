@@ -99,7 +99,126 @@ cp .env.example .env
 
 ```bash
 # Edit .env — set DATABASE_URL
-psql $DATABASE_URL -f sql/tables-clean-install.sql
+psql $DATABASE_URL -f sql/tables.sql
+```
+
+**2b. Lock down your VM firewall (if self-hosting on a VPS)**
+
+Hyperdrive connects from Cloudflare's network to your VM on port 5432. Restrict port 5432 to Cloudflare IPs and your own IP only — block everything else. Pick your provider below.
+
+> **Cloudflare IP ranges** (same pool for Workers, Hyperdrive, all CF products — verify current list at https://www.cloudflare.com/ips/):
+> ```
+> IPv4: 173.245.48.0/20  103.21.244.0/22  103.22.200.0/22  103.31.4.0/22
+>       141.101.64.0/18  108.162.192.0/18  190.93.240.0/20  188.114.96.0/20
+>       197.234.240.0/22  198.41.128.0/17  162.158.0.0/15  104.16.0.0/13
+>       104.24.0.0/14  172.64.0.0/13  131.0.72.0/22
+> IPv6: 2400:cb00::/32  2606:4700::/32  2803:f800::/32  2405:b500::/32
+>       2405:8100::/32  2a06:98c0::/29  2c0f:f248::/32
+> ```
+
+---
+
+**Ionos (my.ionos.com) — no SSH needed**
+
+1. Log in → **Server & Cloud** → select your server
+2. **Network** tab → **Firewall Policies** → **Add Rule**
+3. For each CF IP range above, add a rule:
+   - Direction: **Inbound** · Protocol: **TCP** · Port: **5432** · Source IP: *(paste one range)*
+4. Add one more rule for your personal IP (`curl ifconfig.me` to find it)
+5. Add a final rule: Direction: Inbound · Protocol: TCP · Port: 5432 · Source: **0.0.0.0/0** · Action: **DENY**
+6. Apply the policy to your server
+
+---
+
+**AWS — EC2 Security Groups**
+
+1. EC2 → **Security Groups** → select the group attached to your instance
+2. **Inbound rules** → **Edit inbound rules** → **Add rule**
+3. For each CF IP range:
+   - Type: **Custom TCP** · Port: **5432** · Source: **Custom** · *(paste CIDR)*
+4. Add one rule for your personal IP
+5. **Save rules** — any IP not listed is implicitly denied
+
+---
+
+**Google Cloud — VPC Firewall**
+
+1. **VPC Network** → **Firewall** → **Create firewall rule**
+2. Set: Direction: **Ingress** · Action: **Allow** · Targets: your instance tag or all
+3. Protocols and ports: **TCP** · **5432**
+4. Source IPv4 ranges: paste all CF IPv4 ranges comma-separated
+5. Create a second rule for your personal IP
+6. Create a **deny-all** rule for port 5432 with lower priority (higher number = lower priority) and source `0.0.0.0/0`
+
+---
+
+**Azure — Network Security Group (NSG)**
+
+1. Your VM → **Networking** → **Inbound port rules** → **Add inbound port rule**
+2. For each CF range:
+   - Source: **IP Addresses** · Source IP: *(paste range)* · Protocol: **TCP** · Port: **5432** · Action: **Allow** · Priority: **100–199**
+3. Add a rule for your personal IP at priority **200**
+4. Add a final rule: Source: **Any** · Port: **5432** · Action: **Deny** · Priority: **300**
+
+---
+
+**DigitalOcean — Cloud Firewall**
+
+1. **Networking** → **Firewalls** → **Create Firewall** (or edit existing)
+2. **Inbound Rules** → **Add rule**:
+   - Protocol: **TCP** · Port: **5432** · Sources: paste each CF range as a custom CIDR
+3. Add your personal IP as a source on the same rule or a separate rule
+4. Apply the firewall to your Droplet
+5. DigitalOcean drops all traffic not matching an inbound rule by default — no explicit deny needed
+
+---
+
+**Hetzner — Firewall**
+
+1. **Firewalls** → **Create Firewall** (or edit existing)
+2. **Add Rule** → Direction: **Inbound** · Protocol: **TCP** · Port: **5432**
+3. Source IPs: paste all CF IPv4 ranges (one per line or comma-separated)
+4. Add a second inbound rule for your personal IP
+5. **Apply to servers** → select your server
+6. Hetzner drops everything not explicitly allowed — no deny rule needed
+
+---
+
+**Linux VPS (any provider) — ufw**
+
+```bash
+curl ifconfig.me   # find your personal IP first
+
+ufw allow from YOUR.PERSONAL.IP to any port 5432
+
+# CF IPv4
+ufw allow from 173.245.48.0/20  to any port 5432
+ufw allow from 103.21.244.0/22  to any port 5432
+ufw allow from 103.22.200.0/22  to any port 5432
+ufw allow from 103.31.4.0/22    to any port 5432
+ufw allow from 141.101.64.0/18  to any port 5432
+ufw allow from 108.162.192.0/18 to any port 5432
+ufw allow from 190.93.240.0/20  to any port 5432
+ufw allow from 188.114.96.0/20  to any port 5432
+ufw allow from 197.234.240.0/22 to any port 5432
+ufw allow from 198.41.128.0/17  to any port 5432
+ufw allow from 162.158.0.0/15   to any port 5432
+ufw allow from 104.16.0.0/13    to any port 5432
+ufw allow from 104.24.0.0/14    to any port 5432
+ufw allow from 172.64.0.0/13    to any port 5432
+ufw allow from 131.0.72.0/22    to any port 5432
+
+# CF IPv6
+ufw allow from 2400:cb00::/32   to any port 5432
+ufw allow from 2606:4700::/32   to any port 5432
+ufw allow from 2803:f800::/32   to any port 5432
+ufw allow from 2405:b500::/32   to any port 5432
+ufw allow from 2405:8100::/32   to any port 5432
+ufw allow from 2a06:98c0::/29   to any port 5432
+ufw allow from 2c0f:f248::/32   to any port 5432
+
+ufw deny 5432
+ufw reload
 ```
 
 **3. Create a publishable key**
@@ -205,18 +324,27 @@ Returns all component slugs — used by Headlo to build its routing cache.
 
 ## Schema
 
-Full DDL: [sql/tables-clean-install.sql](sql/tables-clean-install.sql)
+Full DDL: [sql/tables.sql](sql/tables.sql)
+
+**Your DB (publisher side)** — `sql/tables.sql`
 
 | Table | What it stores |
 |---|---|
-| `prop_component.def` | Component type definitions (slug, framework, visibility) |
-| `prop_component.app` | Compiled component implementations (JS bundle, version) |
-| `prop_service.def` | Service type definitions |
-| `prop_service.app` | Versioned service client stubs |
+| `prop_component.app` | Component source, compiled JS, and bundle — pushed here by Headlo via `/sync`, served to browser from your domain |
+| `prop_service.app` | Service client stubs — pushed here by Headlo, served to browser from your domain |
+
+**Headlo's DB** — registry, billing, keys. You never write to these.
+
+| Table | What it stores |
+|---|---|
+| `prop_component.def` | Component registry (slug, framework, stage) |
+| `prop_service.def` | Service registry |
 | `prop_server.api_key` | Publishable keys + origin allowlists |
 | `prop_server.service_subscription` | Agency × service × billing model |
 | `prop_server.usage_period` | Aggregated usage per billing month |
 | `prop_server.mau_touch` | Per-user dedup for MAU counting |
+
+See [docs/headlo-prop-split.md](docs/headlo-prop-split.md) for the full ownership breakdown.
 
 **Adding a component (self-hosted)**
 

@@ -1,0 +1,102 @@
+{
+	// ── Your PROP server worker ────────────────────────────────────────────────
+	// Rename this to match your project, e.g. "acme-prop-worker"
+	"name": "[your project]-prop-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-04-01",
+	"compatibility_flags": [
+		"nodejs_compat"   // required for the 'pg' postgres client
+	],
+
+	// ── VM firewall — lock Postgres port to Cloudflare + your IP only ───────────
+	// Before deploying, restrict port 5432 on your VM/cloud to Cloudflare IPs only.
+	// Full instructions for Ionos, AWS, GCP, Azure, DigitalOcean, Hetzner: README.md § Firewall
+	// Current Cloudflare IP list: https://www.cloudflare.com/ips/
+	// ──────────────────────────────────────────────────────────────────────────
+
+	// ── Local dev (wrangler dev) ───────────────────────────────────────────────
+	// Hyperdrive falls back to localConnectionString when running locally.
+	// Point this at your local Postgres instance.
+	// Format: postgresql://<user>:<password>@<host>:<port>/<database>
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "your-hyperdrive-id-here",   // paste id from: wrangler hyperdrive create ...
+			"localConnectionString": "postgresql://postgres:postgres@localhost:5432/prop_dev"
+		}
+	],
+
+	// ── Vars (non-secret, per-environment) ────────────────────────────────────
+	// These are safe to commit. Put secrets in wrangler secret put (see below).
+	"vars": {
+		"HEADLO_ORIGIN": "https://api.headlo.com"   // override to https://api-dev.headlo.com for dev
+	},
+
+	// ── Secrets (never put these in wrangler.jsonc) ────────────────────────────
+	// Set each one via:  wrangler secret put <NAME>
+	//
+	//   HEADLO_PUBLISHABLE_KEY   pk_live_xxx  — from Headlo dashboard → Settings → API Keys
+	//                            Headlo uses this to authenticate /sync pushes to your server.
+	//                            Also sent on every proxied request so Headlo knows your agency.
+	//
+	// Optional:
+	//   HEADLO_ORIGIN            Override the Headlo API origin (e.g. https://api-dev.headlo.com)
+	//                            Only needed if you are testing against a non-production Headlo.
+	// ──────────────────────────────────────────────────────────────────────────
+
+	// ── Environments ──────────────────────────────────────────────────────────
+	"env": {
+
+		// wrangler deploy --env development
+		"development": {
+			"name": "acme-prop-worker-dev",
+			"workers_dev": false,
+			"routes": [
+				// Replace prop-dev.acme.com with your staging domain.
+				// The zone_name must match a zone in your Cloudflare account.
+				{ "pattern": "prop-dev.acme.com/*", "zone_name": "acme.com" },
+				{ "pattern": "prop-dev.acme.com",   "zone_name": "acme.com" }
+			],
+			"vars": {
+				"HEADLO_ORIGIN": "https://api-dev.headlo.com"
+			},
+			"hyperdrive": [
+				{
+					"binding": "HYPERDRIVE",
+					"id": "your-dev-hyperdrive-id-here"
+					// How to create:
+					//   wrangler hyperdrive create acme-prop-db-dev \
+					//     --connection-string="postgresql://user:pass@your-dev-db-host:5432/prop_dev"
+					// Then paste the returned id above.
+				}
+			]
+		},
+
+		// wrangler deploy --env production
+		"production": {
+			"name": "acme-prop-worker",
+			"routes": [
+				// Replace prop.acme.com with your production domain.
+				{ "pattern": "prop.acme.com/*", "zone_name": "acme.com" },
+				{ "pattern": "prop.acme.com",   "zone_name": "acme.com" }
+			],
+			"vars": {
+				"HEADLO_ORIGIN": "https://api.headlo.com"
+			},
+			"hyperdrive": [
+				{
+					"binding": "HYPERDRIVE",
+					"id": "your-prod-hyperdrive-id-here"
+					// How to create:
+					//   wrangler hyperdrive create acme-prop-db \
+					//     --connection-string="postgresql://user:pass@your-prod-db-host:5432/prop"
+					// Then paste the returned id above.
+					//
+					// Supported databases: any Postgres-compatible DB accessible from Cloudflare.
+					// Neon, Supabase, RDS, and self-hosted Postgres all work.
+					// Requires Workers Paid plan ($5/month) — no per-connection charge on top of that.
+				}
+			]
+		}
+	}
+}
