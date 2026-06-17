@@ -15,9 +15,13 @@
 	// ──────────────────────────────────────────────────────────────────────────
 
 	// ── Local dev (wrangler dev) ───────────────────────────────────────────────
-	// Hyperdrive falls back to localConnectionString when running locally.
-	// Point this at your local Postgres instance.
-	// Format: postgresql://<user>:<password>@<host>:<port>/<database>
+	// Hyperdrive supports PostgreSQL, MySQL, and any PostgreSQL wire-compatible DB
+	// (Neon, Supabase, CockroachDB, PlanetScale, RDS, AlloyDB, self-hosted).
+	// The connection string prefix determines the protocol:
+	//   postgresql://user:pass@host:5432/db   ← Postgres (default, matches the pg client in index.ts)
+	//   mysql://user:pass@host:3306/db        ← MySQL (swap index.ts to use a MySQL client)
+	//
+	// Hyperdrive falls back to localConnectionString when running locally (wrangler dev).
 	"hyperdrive": [
 		{
 			"binding": "HYPERDRIVE",
